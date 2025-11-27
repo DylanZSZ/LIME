@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Performance Analysis: Offline vs Online (Pass@8)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navbar -->
+    <nav class="bg-slate-900 text-white p-4 sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight">SynLogic Analysis <span class="text-indigo-400 ml-2 text-sm font-normal">Pass@8 Focus</span></h1>
+            <div class="text-sm text-slate-400">Qwen3 Base Models</div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        
+        <!-- Controls -->
+        <div class="mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">Performance Discrepancy Report</h2>
+                <p class="text-slate-600 mt-1">Analyzing the gap between offline ranking metrics and real-world online performance (Pass@8).</p>
+            </div>
+            
+            <div class="bg-white p-2 rounded-lg shadow border border-slate-200">
+                <label for="modelSelect" class="text-xs font-bold text-slate-500 uppercase px-2">Select Model Size</label>
+                <select id="modelSelect" class="w-full sm:w-48 bg-transparent font-semibold text-indigo-600 focus:outline-none cursor-pointer mt-1 px-2 pb-1">
+                    <option value="4b">Qwen3-4B (Best Example)</option>
+                    <option value="1.7b">Qwen3-1.7B</option>
+                    <option value="0.6b">Qwen3-0.6B</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Key Takeaway Banner -->
+        <div class="mb-8 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r shadow-sm">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <!-- Icon -->
+                    <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-bold text-amber-800 uppercase tracking-wide">Key Takeaway</h3>
+                    <div class="mt-1 text-sm text-amber-800">
+                        <p><strong>Offline ≠ Online:</strong> There is a distinct lack of correlation between offline evaluation metrics and online deployment success. High offline rankings often fail to predict the best performing models in real-world scenarios.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Insights Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            
+            <!-- Insight 1: Ranking Disconnect -->
+            <div class="card p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">1. Offline ≠ Online</h3>
+                        <p class="text-sm text-slate-500">Comparing Ranking Positions</p>
+                    </div>
+                    <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">High Discrepancy</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="rankingChart"></canvas>
+                </div>
+                <div class="mt-4 text-sm text-slate-600 bg-slate-50 p-3 rounded">
+                    <strong>Observation:</strong> <span id="rank-insight">Note how the lines cross chaotically. High offline rank often correlates poorly with online rank. Specifically, look at the <b>IS</b> method (Green), which often ranks low offline but jumps to #1 online.</span>
+                </div>
+            </div>
+
+            <!-- Insight 2: Winning Method -->
+            <div class="card p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">2. The SOTA Method</h3>
+                        <p class="text-sm text-slate-500">Online Pass@8 Performance</p>
+                    </div>
+                    <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">Winner: IS</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+                <div class="mt-4 text-sm text-slate-600 bg-slate-50 p-3 rounded">
+                    <strong>Observation:</strong> <span id="perf-insight"><b>Importance-Sampling (IS)</b> demonstrates superior performance in the online environment, significantly outperforming the standard SFT baseline in larger models.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Data Table -->
+        <div class="card overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <h3 class="font-bold text-slate-700">Detailed Metrics (Pass@8)</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b">
+                        <tr>
+                            <th class="px-6 py-3">Method</th>
+                            <th class="px-6 py-3">Offline Rank</th>
+                            <th class="px-6 py-3">Offline Pass@8</th>
+                            <th class="px-6 py-3">Online Rank</th>
+                            <th class="px-6 py-3 font-bold text-indigo-600">Online Pass@8</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-slate-900 text-slate-400 py-6 mt-12 text-center text-sm">
+        <p>Data visualization based on SynLogic benchmarks (Pass@8).</p>
+    </footer>
+
+    <script>
+        // --- DATA SOURCE (Pass@8) ---
+        // Ranks are now removed from source and calculated dynamically
+        const rawDataValues = {
+            "0.6b": [
+                { method: "Base (N/A)", offP8: 12.50, onP8: 1.25 },
+                { method: "SFT", offP8: 33.75, onP8: 47.50 },
+                { method: "IS", offP8: 25.00, onP8: 32.50 },
+                { method: "OnlyTopP-0.5", offP8: 27.50, onP8: 26.25 },
+                { method: "OnlyBottomP-0.5", offP8: 30.00, onP8: 20.00 },
+                { method: "OnlyTopLogP-0.5", offP8: 21.25, onP8: 32.50 },
+                { method: "OnlyBottomLogP-0.5", offP8: 7.50, onP8: 37.50 },
+                { method: "GeneralFamily", offP8: 26.25, onP8: 23.75 }
+            ],
+            "1.7b": [
+                { method: "Base (N/A)", offP8: 17.50, onP8: 28.75 },
+                { method: "SFT", offP8: 28.75, onP8: 45.00 },
+                { method: "IS (pos-100k)", offP8: 20.00, onP8: 70.00 },
+                { method: "OnlyTopP-0.5", offP8: 33.75, onP8: 37.50 },
+                { method: "OnlyBottomP-0.5", offP8: 30.00, onP8: 55.00 },
+                { method: "OnlyTopLogP-0.5", offP8: 37.50, onP8: 37.50 },
+                { method: "OnlyBottomLogP-0.5", offP8: 37.50, onP8: 37.50 }
+                // GeneralFamily excluded for 1.7b due to missing Online data
+            ],
+            "4b": [
+                { method: "Base (N/A)", offP8: 45.00, onP8: 41.25 },
+                { method: "SFT", offP8: 25.00, onP8: 71.25 },
+                { method: "IS", offP8: 30.00, onP8: 76.25 },
+                { method: "OnlyTopP-0.5", offP8: 45.00, onP8: 63.75 },
+                { method: "OnlyBottomP-0.5", offP8: 60.00, onP8: 71.25 },
+                { method: "OnlyTopLogP-0.5", offP8: 52.50, onP8: 72.50 },
+                { method: "OnlyBottomLogP-0.5", offP8: 42.50, onP8: 60.00 },
+                { method: "GeneralFamily", offP8: 47.50, onP8: 63.75 }
+            ]
+        };
+
+        // --- HELPER: Calculate Local Ranks ---
+        function calculateRanks(modelData) {
+            // Clone to avoid mutating original source if needed repeatedly
+            let processed = JSON.parse(JSON.stringify(modelData));
+
+            // Assign Offline Ranks
+            // Sort Descending by Offline Score
+            processed.sort((a, b) => b.offP8 - a.offP8);
+            processed.forEach((item, index) => {
+                item.offRank = index + 1;
+            });
+
+            // Assign Online Ranks
+            // Sort Descending by Online Score
+            processed.sort((a, b) => b.onP8 - a.onP8);
+            processed.forEach((item, index) => {
+                item.onRank = index + 1;
+            });
+
+            return processed;
+        }
+
+        // --- CHART CONFIGURATION ---
+        let rankingChart = null;
+        let performanceChart = null;
+
+        function updateCharts(modelKey) {
+            // Calculate ranks dynamically for the selected model
+            const data = calculateRanks(rawDataValues[modelKey]);
+            
+            // For Bar Chart: We are already sorted by Online P8 from the ranking calculation
+            // For Line Chart: We use the same data array
+            
+            // 1. Ranking Chart (Slope Chart)
+            const ctxRank = document.getElementById('rankingChart').getContext('2d');
+            
+            const datasets = data.map(item => {
+                const isIS = item.method.includes("IS");
+                const isSFT = item.method === "SFT";
+                
+                let color = '#cbd5e1'; // Default gray
+                let width = 2;
+                let order = 10;
+
+                if (isIS) {
+                    color = '#16a34a'; // Green
+                    width = 4;
+                    order = 1; 
+                } else if (isSFT) {
+                    color = '#4f46e5'; // Indigo
+                    width = 3;
+                    order = 2;
+                }
+
+                return {
+                    label: item.method,
+                    data: [item.offRank, item.onRank],
+                    borderColor: color,
+                    borderWidth: width,
+                    tension: 0.1,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    order: order
+                };
+            });
+
+            if (rankingChart) rankingChart.destroy();
+            rankingChart = new Chart(ctxRank, {
+                type: 'line',
+                data: {
+                    labels: ['Offline Rank', 'Online Rank'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'dataset',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            reverse: true, // Rank 1 is top
+                            title: { display: true, text: 'Ranking (Lower is Better)' },
+                            min: 1,
+                            max: data.length, // Dynamic max rank based on items
+                            ticks: { stepSize: 1 }
+                        },
+                        x: {
+                            offset: true 
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }, 
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: Rank ${context.raw}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. Performance Chart (Bar - Pass@8)
+            const ctxPerf = document.getElementById('performanceChart').getContext('2d');
+            
+            const labels = data.map(d => d.method);
+            const values = data.map(d => d.onP8);
+            const bgColors = data.map(d => d.method.includes("IS") ? '#16a34a' : (d.method === 'SFT' ? '#4f46e5' : '#e2e8f0'));
+
+            if (performanceChart) performanceChart.destroy();
+            performanceChart = new Chart(ctxPerf, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Online Pass@8 (%)',
+                        data: values,
+                        backgroundColor: bgColors,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Pass@8 Success Rate (%)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // 3. Update Text Insights
+            const rankInsight = document.getElementById('rank-insight');
+            const isItem = data.find(d => d.method.includes("IS"));
+            if (isItem) {
+                const diff = isItem.offRank - isItem.onRank;
+                if(diff > 0) {
+                     rankInsight.innerHTML = `Significant Disconnect: <b>IS</b> (Green) ranks <b>#${isItem.offRank}</b> Offline, but rises to <b>#${isItem.onRank}</b> Online.`;
+                } else if (diff < 0) {
+                     rankInsight.innerHTML = `Inverse Trend: <b>IS</b> (Green) dropped from Rank #${isItem.offRank} to #${isItem.onRank}.`;
+                } else {
+                     rankInsight.innerHTML = `Consistent Ranking: <b>IS</b> maintained rank #${isItem.onRank} in both environments.`;
+                }
+            }
+
+            // 4. Update Table
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            // Data is already sorted by Online Rank (via calculateRanks)
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "bg-white border-b hover:bg-slate-50";
+                
+                // Highlight IS row
+                if(row.method.includes("IS")) tr.className += " bg-green-50";
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 font-medium text-slate-900">${row.method}</td>
+                    <td class="px-6 py-4">${row.offRank}</td>
+                    <td class="px-6 py-4">${row.offP8.toFixed(2)}%</td>
+                    <td class="px-6 py-4">${row.onRank}</td>
+                    <td class="px-6 py-4 font-bold ${row.method.includes("IS") ? 'text-green-600' : 'text-slate-600'}">${row.onP8.toFixed(2)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- INIT ---
+        const selector = document.getElementById('modelSelect');
+        selector.addEventListener('change', (e) => updateCharts(e.target.value));
+        
+        // Start with 4b as it shows the discrepancy best
+        updateCharts('4b');
+
+    </script>
+</body>
+</html>
